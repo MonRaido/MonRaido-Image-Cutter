@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monraido Webtoon Cutter</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- JSZip for exporting ZIP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <main class="canvas-area" id="canvasContainer">
+            <div class="placeholder" id="placeholder">
+                <h2>No images loaded</h2>
+                <p>Upload files from the right panel to begin</p>
+            </div>
+            <!-- We will use a scrolling div containing the canvas -->
+            <canvas id="workspace"></canvas>
+        </main>
+        
+        <aside class="sidebar">
+            <h1 class="logo">✂️ Monraido Cutter</h1>
+            
+            <div class="panel">
+                <h3>1. Yükle</h3>
+                <label class="btn btn-primary upload-btn">
+                    <span>Resimleri Seç</span>
+                    <input type="file" id="fileInput" multiple accept="image/png, image/jpeg, image/webp, image/bmp" style="display: none;">
+                </label>
+                <div id="fileCount" class="info-text">Bekleniyor...</div>
+            </div>
+
+            <div class="panel">
+                <h3>2. Çizgiler</h3>
+                <div class="input-group">
+                    <label>Aralık (px):</label>
+                    <input type="number" id="intervalInput" value="5000" min="100" max="65000">
+                </div>
+                <button class="btn btn-secondary" id="btnAutoLine">Oluştur</button>
+                <div class="btn-group">
+                    <button class="btn btn-icon btn-secondary" id="btnAddLine" title="Yeni Çizgi Ekle">+ Manuel Çizgi</button>
+                    <button class="btn btn-icon btn-danger" id="btnClearLines" title="Tüm Çizgileri Sil">Hepsini Sil</button>
+                </div>
+                <div class="info-text info-box">
+                    💡 <b>İpucu:</b> Çizgileri fare ile tutup yukarı-aşağı sürükleyebilirsiniz.<br><br>
+                    ❌ Silmek için çizginin üzerine <b>çift tıklayın</b>.
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>3. Çıktı & Dışa Aktar</h3>
+                <div class="input-group">
+                    <label>Format:</label>
+                    <select id="formatSelect">
+                        <option value="image/jpeg">JPG</option>
+                        <option value="image/png">PNG</option>
+                        <option value="image/webp">WEBP</option>
+                    </select>
+                </div>
+                <div class="input-group" id="qualityGroup">
+                    <label>Kalite:</label>
+                    <input type="range" id="qualityInput" min="0.1" max="1.0" step="0.05" value="0.95">
+                </div>
+                <button class="btn btn-accent" id="btnExport">Böl ve İndir (ZIP)</button>
+                <div id="exportStatus" class="info-text"></div>
+            </div>
+        </aside>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
