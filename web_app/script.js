@@ -16,9 +16,18 @@ let isAddMode = false;
 
 // 1. Dosya Yükleme (File Upload)
 fileInput.addEventListener('change', async (e) => {
-    // İsme göre "Doğal Sıralama" (Natural Sort) yapar. Yani 2.jpg, 10.jpg'den önce gelir.
-    const files = Array.from(e.target.files).sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true, sensitivity: 'base'}));
+    // Sadece resim formatlarını al
+    let allFiles = Array.from(e.target.files);
+    let files = allFiles.filter(f => f.type.startsWith('image/') || f.name.match(/\.(jpg|jpeg|png|webp|bmp)$/i));
+    
+    if (files.length === 0 && allFiles.length > 0) {
+        alert("Lütfen sadece resim (JPG, PNG, WEBP vb.) dosyaları seçin.");
+        return;
+    }
     if (files.length === 0) return;
+
+    // İsme göre "Doğal Sıralama" (Natural Sort) yapar. Yani 2.jpg, 10.jpg'den önce gelir.
+    files.sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true, sensitivity: 'base'}));
 
     fileCount.textContent = "Yükleniyor (Lütfen bekleyin)...";
     placeholder.style.display = 'none';
