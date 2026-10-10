@@ -260,13 +260,13 @@ qualityInput.addEventListener('input', () => {
 // 3. Kesme ve ZIP'leme İşlemi (Export)
 document.getElementById('btnExport').addEventListener('click', async () => {
     if (images.length === 0) return alert("Önce resim yükleyin!");
-    if (cutLines.length === 0) return alert("Lütfen kesim çizgilerini oluşturun!");
+    // Çizgi sınırı kaldırıldı, kullanıcı hiç çizgi eklemese bile birleştirme yapabilir.
 
     const status = document.getElementById('exportStatus');
     const btn = document.getElementById('btnExport');
     
     btn.disabled = true;
-    btn.textContent = "Bölünüyor...";
+    btn.textContent = "İşleniyor...";
     status.textContent = "İşlem başladı, lütfen bekleyin...";
 
     await new Promise(resolve => setTimeout(resolve, 50));
@@ -276,8 +276,23 @@ document.getElementById('btnExport').addEventListener('click', async () => {
         
         let cuts = [...cutLines];
         cuts.sort((a, b) => a - b);
-        if (cuts[0] !== 0) cuts.unshift(0);
+        if (cuts.length === 0 || cuts[0] !== 0) cuts.unshift(0);
         if (cuts[cuts.length - 1] < totalHeight) cuts.push(totalHeight);
+        
+        // 65500 piksel tarayıcı sınırı kontrolü
+        let maxHeight = 0;
+        for (let i = 0; i < cuts.length - 1; i++) {
+            let h = Math.round(cuts[i+1] - cuts[i]);
+            if (h > maxHeight) maxHeight = h;
+        }
+
+        if (maxHeight > 65500) {
+            alert(`UYARI: Oluşacak resimlerden biri ${maxHeight} piksel yüksekliğinde!\n\nTarayıcı sınırı (65.500px) aşıldığı için işlem durduruldu. Lütfen araya kesim çizgisi ekleyerek parçaları küçültün.`);
+            btn.disabled = false;
+            btn.textContent = "Böl ve İndir (ZIP)";
+            status.textContent = "İşlem iptal edildi (Boyut sınırı uyarısı).";
+            return;
+        }
         
         const format = formatSelect.value;
         const quality = parseInt(qualityInput.value) / 100;
