@@ -16,7 +16,8 @@ let isAddMode = false;
 
 // 1. Dosya Yükleme (File Upload)
 fileInput.addEventListener('change', async (e) => {
-    const files = Array.from(e.target.files).sort((a, b) => a.name.localeCompare(b.name));
+    // İsme göre "Doğal Sıralama" (Natural Sort) yapar. Yani 2.jpg, 10.jpg'den önce gelir.
+    const files = Array.from(e.target.files).sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true, sensitivity: 'base'}));
     if (files.length === 0) return;
 
     fileCount.textContent = "Yükleniyor (Lütfen bekleyin)...";
@@ -45,8 +46,9 @@ fileInput.addEventListener('change', async (e) => {
     }
 
     fileCount.textContent = `${files.length} dosya yüklendi`;
-    workspace.style.width = maxWidth + 'px';
-    workspace.style.height = totalHeight + 'px';
+    workspace.style.width = '100%';
+    workspace.style.maxWidth = maxWidth + 'px';
+    // workspace'in yüksekliği resimler tarafından otomatik belirlenecek
     
     // Çizgileri sıfırla
     cutLines = [];
@@ -63,31 +65,43 @@ function loadImage(src) {
 }
 
 function drawLines() {
-    // Sadece .cut-line elemanlarını sil
-    const existingLines = workspace.querySelectorAll('.cut-line');
-    existingLines.forEach(el => el.remove());
-    
     cutLines.sort((a, b) => a - b);
     
+    const existingLines = workspace.querySelectorAll('.cut-line');
+    
+    // Fazla çizgileri sil
+    for (let i = cutLines.length; i < existingLines.length; i++) {
+        existingLines[i].remove();
+    }
+    
+    // Var olanları güncelle, eksik varsa oluştur
     for (let i = 0; i < cutLines.length; i++) {
         let y = cutLines[i];
-        
-        const line = document.createElement('div');
-        line.className = 'cut-line';
-        line.style.top = y + 'px';
-        line.dataset.index = i;
-        
         let prevY = i === 0 ? 0 : cutLines[i-1];
         let diff = Math.round(y - prevY);
         
-        const label = document.createElement('div');
-        label.className = 'cut-line-label';
-        label.textContent = `${diff} px`;
+        let line = existingLines[i];
         
-        line.appendChild(label);
+        // Eğer DOM'da karşılığı yoksa yeni oluştur
+        if (!line) {
+            line = document.createElement('div');
+            line.className = 'cut-line';
+            
+            const label = document.createElement('div');
+            label.className = 'cut-line-label';
+            
+            const handle = document.createElement('div');
+            handle.className = 'cut-line-handle';
+            handle.innerHTML = '↕';
+            
+            line.appendChild(label);
+            line.appendChild(handle);
+            workspace.appendChild(line);
+        }
         
-        // Sürükle bırak olayları çizgi üzerine de eklenebilir ama container üzerinden yakalamak daha akıcıdır
-        workspace.appendChild(line);
+        // Sadece pozisyonunu (yüzdelik olarak) ve metnini güncelle
+        line.style.top = (y / totalHeight * 100) + '%';
+        line.querySelector('.cut-line-label').textContent = `${diff} px`;
     }
 }
 
@@ -113,53 +127,71 @@ document.getElementById('btnAddLine').addEventListener('click', () => {
     workspace.style.cursor = 'crosshair';
 });
 
-// Arayüz Etkileşimleri (Mouse Drag)
-workspace.addEventListener('mousedown', (e) => {
-    // Ignore middle mouse scroll
-    if (e.button === 1) return;
+// Arayüz Etkileşimleri (Mouse & Touch Drag)
+function getClientY(e) {
+    return e.touches ? e.touches[0].clientY : e.clientY;
+}
+
+workspace.addEventListener('mousedown', handleDown);
+workspace.addEventListener('touchstart', handleDown, {passive: false});
+
+function handleDown(e) {
+    if (!e.touches && e.button === 1) return;
     
     const rect = workspace.getBoundingClientRect();
-    const y = (e.clientY - rect.top); // since workspace height exactly matches pixel height, no scaleY needed
+    const scaleY = totalHeight / rect.height;
+    const y = (getClientY(e) - rect.top) * scaleY;
 
     if (isAddMode) {
         cutLines.push(y);
         isAddMode = false;
         workspace.style.cursor = 'default';
         drawLines();
+        if(e.touches && e.cancelable) e.preventDefault();
         return;
     }
 
-    // Yakında bir çizgi var mı kontrol et (Daha kolay tutmak için 15px tolerans)
+    // Yakında bir çizgi var mı kontrol et (Mobilde daha rahat tutmak için 25px tolerans)
     for (let i = 0; i < cutLines.length; i++) {
-        if (Math.abs(cutLines[i] - y) < 15) {
+        if (Math.abs(cutLines[i] - y) < 25) {
             isDragging = true;
             draggedLineIndex = i;
+            if(e.touches && e.cancelable) e.preventDefault(); // Sürüklerken ekranın kaymasını engelle
             return;
         }
     }
-});
+}
 
-document.addEventListener('mousemove', (e) => {
+document.addEventListener('mousemove', handleMove);
+document.addEventListener('touchmove', handleMove, {passive: false});
+
+function handleMove(e) {
     if (isDragging && draggedLineIndex !== -1) {
         const rect = workspace.getBoundingClientRect();
-        const y = (e.clientY - rect.top);
+        const scaleY = totalHeight / rect.height;
+        const y = (getClientY(e) - rect.top) * scaleY;
         cutLines[draggedLineIndex] = Math.max(0, Math.min(totalHeight, y));
         drawLines();
+        if (e.cancelable) e.preventDefault();
     }
-});
+}
 
-document.addEventListener('mouseup', () => {
+document.addEventListener('mouseup', handleUp);
+document.addEventListener('touchend', handleUp);
+
+function handleUp() {
     isDragging = false;
     draggedLineIndex = -1;
-});
+}
 
-// Çift tıklama ile çizgi silme
+// Çift tıklama ile çizgi silme (Mouse)
 workspace.addEventListener('dblclick', (e) => {
     const rect = workspace.getBoundingClientRect();
-    const y = (e.clientY - rect.top);
+    const scaleY = totalHeight / rect.height;
+    const y = (e.clientY - rect.top) * scaleY;
     
     for (let i = 0; i < cutLines.length; i++) {
-        if (Math.abs(cutLines[i] - y) < 15) {
+        if (Math.abs(cutLines[i] - y) < 20) {
             cutLines.splice(i, 1);
             drawLines();
             return;
@@ -167,11 +199,33 @@ workspace.addEventListener('dblclick', (e) => {
     }
 });
 
+// Çift tıklama (Double Tap) ile çizgi silme (Mobil Touch)
+let lastTap = 0;
+workspace.addEventListener('touchend', (e) => {
+    const currentTime = new Date().getTime();
+    const tapLength = currentTime - lastTap;
+    if (tapLength < 300 && tapLength > 0) {
+        const rect = workspace.getBoundingClientRect();
+        const scaleY = totalHeight / rect.height;
+        const y = (e.changedTouches[0].clientY - rect.top) * scaleY;
+        for (let i = 0; i < cutLines.length; i++) {
+            if (Math.abs(cutLines[i] - y) < 25) {
+                cutLines.splice(i, 1);
+                drawLines();
+                if(e.cancelable) e.preventDefault();
+                return;
+            }
+        }
+    }
+    lastTap = currentTime;
+});
+
 // Hover cursor
 workspace.addEventListener('mousemove', (e) => {
     if (isDragging || isAddMode) return;
     const rect = workspace.getBoundingClientRect();
-    const y = (e.clientY - rect.top);
+    const scaleY = totalHeight / rect.height;
+    const y = (e.clientY - rect.top) * scaleY;
     
     let hovering = false;
     for (let line of cutLines) {
