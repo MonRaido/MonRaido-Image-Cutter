@@ -1,0 +1,31 @@
+{
+  "name": "Monraido Webtoon Cutter",
+  "short_name": "MonCutter",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "ico64.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    },
+    {
+      "src": "ico128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "ico256.png",
+      "sizes": "256x256",
+      "type": "image/png"
+    },
+    {
+      "src": "ico512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
