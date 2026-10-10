@@ -16,8 +16,8 @@
                 <h2>Resim Yüklenmedi</h2>
                 <p>Başlamak için sağ panelden resim seçin</p>
             </div>
-            <!-- Huge canvas will crash on browsers, using a relative div instead -->
-            <div id="workspace" style="position: relative; background: white; display: none; box-shadow: 0 0 40px rgba(0,0,0,0.8);">
+            <!-- Huge elements with box-shadow crash the browser's GPU renderer. Removed shadow and flex display. -->
+            <div id="workspace" style="position: relative; background: white; display: none; margin: 0 auto; flex-direction: column;">
             </div>
         </main>
         

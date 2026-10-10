@@ -21,7 +21,7 @@ fileInput.addEventListener('change', async (e) => {
 
     fileCount.textContent = "Yükleniyor (Lütfen bekleyin)...";
     placeholder.style.display = 'none';
-    workspace.style.display = 'block';
+    workspace.style.display = 'flex';
     
     // Clear previous
     images = [];
