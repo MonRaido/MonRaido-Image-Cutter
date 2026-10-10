@@ -238,19 +238,14 @@ workspace.addEventListener('mousemove', (e) => {
 });
 
 
-// Format değişince kalite panelini karart
 const formatSelect = document.getElementById('formatSelect');
 const qualityGroup = document.getElementById('qualityGroup');
 const qualityInput = document.getElementById('qualityInput');
+const qualityValue = document.getElementById('qualityValue');
 
-formatSelect.addEventListener('change', () => {
-    if (formatSelect.value === 'image/png') {
-        qualityGroup.style.opacity = '0.5';
-        qualityGroup.style.pointerEvents = 'none';
-    } else {
-        qualityGroup.style.opacity = '1';
-        qualityGroup.style.pointerEvents = 'auto';
-    }
+// Kalite barı değiştikçe yanındaki sayıyı güncelle
+qualityInput.addEventListener('input', () => {
+    qualityValue.textContent = qualityInput.value;
 });
 
 // 3. Kesme ve ZIP'leme İşlemi (Export)
@@ -276,7 +271,7 @@ document.getElementById('btnExport').addEventListener('click', async () => {
         if (cuts[cuts.length - 1] < totalHeight) cuts.push(totalHeight);
         
         const format = formatSelect.value;
-        const quality = parseFloat(qualityInput.value);
+        const quality = parseInt(qualityInput.value) / 100;
         let ext = format === 'image/jpeg' ? 'jpg' : (format === 'image/webp' ? 'webp' : 'png');
 
         const sliceCanvas = document.createElement('canvas');
