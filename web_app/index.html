@@ -13,11 +13,12 @@
     <div class="app-container">
         <main class="canvas-area" id="canvasContainer">
             <div class="placeholder" id="placeholder">
-                <h2>No images loaded</h2>
-                <p>Upload files from the right panel to begin</p>
+                <h2>Resim Yüklenmedi</h2>
+                <p>Başlamak için sağ panelden resim seçin</p>
             </div>
-            <!-- We will use a scrolling div containing the canvas -->
-            <canvas id="workspace"></canvas>
+            <!-- Huge canvas will crash on browsers, using a relative div instead -->
+            <div id="workspace" style="position: relative; background: white; display: none; box-shadow: 0 0 40px rgba(0,0,0,0.8);">
+            </div>
         </main>
         
         <aside class="sidebar">

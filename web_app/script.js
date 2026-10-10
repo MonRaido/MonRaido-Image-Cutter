@@ -1,11 +1,11 @@
 const fileInput = document.getElementById('fileInput');
 const fileCount = document.getElementById('fileCount');
-const canvas = document.getElementById('workspace');
-const ctx = canvas.getContext('2d');
+const workspace = document.getElementById('workspace');
 const placeholder = document.getElementById('placeholder');
 const canvasContainer = document.getElementById('canvasContainer');
 
 let images = [];
+let imageElements = [];
 let cutLines = [];
 let totalHeight = 0;
 let maxWidth = 0;
@@ -21,76 +21,73 @@ fileInput.addEventListener('change', async (e) => {
 
     fileCount.textContent = "Yükleniyor (Lütfen bekleyin)...";
     placeholder.style.display = 'none';
+    workspace.style.display = 'block';
     
+    // Clear previous
     images = [];
+    imageElements = [];
+    workspace.innerHTML = '';
     totalHeight = 0;
     maxWidth = 0;
 
     for (let file of files) {
-        const img = await loadImage(file);
+        const imgUrl = URL.createObjectURL(file);
+        const img = await loadImage(imgUrl);
         images.push(img);
+        
+        const imgEl = document.createElement('img');
+        imgEl.src = imgUrl;
+        workspace.appendChild(imgEl);
+        imageElements.push(imgEl);
+
         if (img.width > maxWidth) maxWidth = img.width;
         totalHeight += img.height;
     }
 
     fileCount.textContent = `${files.length} dosya yüklendi`;
-    
-    canvas.width = maxWidth;
-    canvas.height = totalHeight;
+    workspace.style.width = maxWidth + 'px';
+    workspace.style.height = totalHeight + 'px';
     
     // Çizgileri sıfırla
     cutLines = [];
-    
-    draw();
+    drawLines();
 });
 
-function loadImage(file) {
+function loadImage(src) {
     return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = reject;
-            img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
     });
 }
 
-function draw() {
-    if (images.length === 0) return;
+function drawLines() {
+    // Sadece .cut-line elemanlarını sil
+    const existingLines = workspace.querySelectorAll('.cut-line');
+    existingLines.forEach(el => el.remove());
     
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    let currentY = 0;
-    for (let img of images) {
-        ctx.drawImage(img, 0, currentY);
-        currentY += img.height;
-    }
-    
-    // Çizgileri Çiz
     cutLines.sort((a, b) => a - b);
-    ctx.lineWidth = 4;
-    ctx.font = "bold 18px Inter";
     
     for (let i = 0; i < cutLines.length; i++) {
         let y = cutLines[i];
         
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
-        ctx.strokeStyle = '#ef4444'; // Kırmızı çizgi
-        ctx.stroke();
+        const line = document.createElement('div');
+        line.className = 'cut-line';
+        line.style.top = y + 'px';
+        line.dataset.index = i;
         
-        // Etiket arka planı ve metni (Görünür olması için)
         let prevY = i === 0 ? 0 : cutLines[i-1];
         let diff = Math.round(y - prevY);
         
-        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-        ctx.fillRect(5, y - 28, 100, 26);
-
-        ctx.fillStyle = '#ef4444';
-        ctx.fillText(`${diff} px`, 15, y - 8);
+        const label = document.createElement('div');
+        label.className = 'cut-line-label';
+        label.textContent = `${diff} px`;
+        
+        line.appendChild(label);
+        
+        // Sürükle bırak olayları çizgi üzerine de eklenebilir ama container üzerinden yakalamak daha akıcıdır
+        workspace.appendChild(line);
     }
 }
 
@@ -103,83 +100,89 @@ document.getElementById('btnAutoLine').addEventListener('click', () => {
     for (let y = interval; y < totalHeight; y += interval) {
         cutLines.push(y);
     }
-    draw();
+    drawLines();
 });
 
 document.getElementById('btnClearLines').addEventListener('click', () => {
     cutLines = [];
-    draw();
+    drawLines();
 });
 
 document.getElementById('btnAddLine').addEventListener('click', () => {
     isAddMode = true;
-    canvas.style.cursor = 'crosshair';
+    workspace.style.cursor = 'crosshair';
 });
 
 // Arayüz Etkileşimleri (Mouse Drag)
-canvas.addEventListener('mousedown', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const scaleY = canvas.height / rect.height;
-    const y = (e.clientY - rect.top) * scaleY;
+workspace.addEventListener('mousedown', (e) => {
+    // Ignore middle mouse scroll
+    if (e.button === 1) return;
+    
+    const rect = workspace.getBoundingClientRect();
+    const y = (e.clientY - rect.top); // since workspace height exactly matches pixel height, no scaleY needed
 
     if (isAddMode) {
         cutLines.push(y);
         isAddMode = false;
-        canvas.style.cursor = 'default';
-        draw();
+        workspace.style.cursor = 'default';
+        drawLines();
         return;
     }
 
-    // Yakında bir çizgi var mı kontrol et
+    // Yakında bir çizgi var mı kontrol et (Daha kolay tutmak için 15px tolerans)
     for (let i = 0; i < cutLines.length; i++) {
-        if (Math.abs(cutLines[i] - y) < 20 * scaleY) {
+        if (Math.abs(cutLines[i] - y) < 15) {
             isDragging = true;
             draggedLineIndex = i;
-            canvas.style.cursor = 'ns-resize';
             return;
         }
     }
 });
 
-canvas.addEventListener('mousemove', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const scaleY = canvas.height / rect.height;
-    const y = (e.clientY - rect.top) * scaleY;
-
+document.addEventListener('mousemove', (e) => {
     if (isDragging && draggedLineIndex !== -1) {
+        const rect = workspace.getBoundingClientRect();
+        const y = (e.clientY - rect.top);
         cutLines[draggedLineIndex] = Math.max(0, Math.min(totalHeight, y));
-        draw();
-    } else if (!isAddMode) {
-        let hovering = false;
-        for (let line of cutLines) {
-            if (Math.abs(line - y) < 20 * scaleY) {
-                hovering = true;
-                break;
-            }
-        }
-        canvas.style.cursor = hovering ? 'ns-resize' : 'default';
+        drawLines();
     }
 });
 
-canvas.addEventListener('mouseup', () => {
+document.addEventListener('mouseup', () => {
     isDragging = false;
     draggedLineIndex = -1;
 });
 
 // Çift tıklama ile çizgi silme
-canvas.addEventListener('dblclick', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const scaleY = canvas.height / rect.height;
-    const y = (e.clientY - rect.top) * scaleY;
+workspace.addEventListener('dblclick', (e) => {
+    const rect = workspace.getBoundingClientRect();
+    const y = (e.clientY - rect.top);
     
     for (let i = 0; i < cutLines.length; i++) {
-        if (Math.abs(cutLines[i] - y) < 20 * scaleY) {
+        if (Math.abs(cutLines[i] - y) < 15) {
             cutLines.splice(i, 1);
-            draw();
+            drawLines();
             return;
         }
     }
 });
+
+// Hover cursor
+workspace.addEventListener('mousemove', (e) => {
+    if (isDragging || isAddMode) return;
+    const rect = workspace.getBoundingClientRect();
+    const y = (e.clientY - rect.top);
+    
+    let hovering = false;
+    for (let line of cutLines) {
+        if (Math.abs(line - y) < 15) {
+            hovering = true;
+            break;
+        }
+    }
+    workspace.style.cursor = hovering ? 'ns-resize' : 'default';
+});
+
 
 // Format değişince kalite panelini karart
 const formatSelect = document.getElementById('formatSelect');
@@ -208,7 +211,6 @@ document.getElementById('btnExport').addEventListener('click', async () => {
     btn.textContent = "Bölünüyor...";
     status.textContent = "İşlem başladı, lütfen bekleyin...";
 
-    // Arayüzün güncellenmesi için ufak bir gecikme
     await new Promise(resolve => setTimeout(resolve, 50));
 
     try {
@@ -223,15 +225,14 @@ document.getElementById('btnExport').addEventListener('click', async () => {
         const quality = parseFloat(qualityInput.value);
         let ext = format === 'image/jpeg' ? 'jpg' : (format === 'image/webp' ? 'webp' : 'png');
 
-        // Geçici gizli bir canvas oluşturup oradan render alıyoruz
         const sliceCanvas = document.createElement('canvas');
         const sliceCtx = sliceCanvas.getContext('2d');
         
         let segmentIndex = 1;
 
         for (let i = 0; i < cuts.length - 1; i++) {
-            const yTop = cuts[i];
-            const yBottom = cuts[i+1];
+            const yTop = Math.round(cuts[i]);
+            const yBottom = Math.round(cuts[i+1]);
             const segHeight = yBottom - yTop;
             
             if (segHeight <= 0) continue;
@@ -240,7 +241,7 @@ document.getElementById('btnExport').addEventListener('click', async () => {
             sliceCanvas.height = segHeight;
             
             if (format !== 'image/png') {
-                sliceCtx.fillStyle = '#ffffff'; // Arkaplan beyaz
+                sliceCtx.fillStyle = '#ffffff'; 
                 sliceCtx.fillRect(0, 0, maxWidth, segHeight);
             }
             
@@ -262,7 +263,6 @@ document.getElementById('btnExport').addEventListener('click', async () => {
                 currentY += img.height;
             }
             
-            // Canvas'ı Blob (dosya) formatına çevir ve ZIP'e at
             const blob = await new Promise(resolve => sliceCanvas.toBlob(resolve, format, quality));
             const fileName = `${String(segmentIndex).padStart(3, '0')}.${ext}`;
             zip.file(fileName, blob);
@@ -274,7 +274,6 @@ document.getElementById('btnExport').addEventListener('click', async () => {
         status.textContent = "ZIP dosyası oluşturuluyor...";
         const zipBlob = await zip.generateAsync({type: "blob"});
         
-        // Tarayıcı üzerinden otomatik indir
         const link = document.createElement('a');
         link.href = URL.createObjectURL(zipBlob);
         link.download = `monraido_slices_${ext}.zip`;
