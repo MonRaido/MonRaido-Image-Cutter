@@ -2,11 +2,36 @@ import os
 from PyQt6.QtGui import QImage, QPainter
 from PyQt6.QtCore import QRect, Qt
 
+def load_qimage(path):
+    """
+    Loads an image from path into a QImage.
+    Supports PNG, JPG, WEBP, BMP directly via Qt,
+    and falls back to Pillow (with pillow_avif) for formats like AVIF.
+    """
+    img = QImage(path)
+    if not img.isNull():
+        return img
+
+    try:
+        from PIL import Image
+        try:
+            import pillow_avif
+        except ImportError:
+            pass
+        with Image.open(path) as pil_img:
+            pil_img = pil_img.convert("RGBA")
+            data = pil_img.tobytes("raw", "RGBA")
+            qimg = QImage(data, pil_img.width, pil_img.height, QImage.Format.Format_RGBA8888)
+            return qimg.copy()
+    except Exception as e:
+        print(f"Error loading image {path}: {e}")
+        return QImage()
+
 def get_image_files(folder):
     """
     Returns a list of image files in the given folder, sorted alphabetically.
     """
-    valid_exts = {'.png', '.jpg', '.jpeg', '.webp', '.bmp'}
+    valid_exts = {'.png', '.jpg', '.jpeg', '.webp', '.bmp', '.avif'}
     image_paths = []
     try:
         files = sorted(os.listdir(folder))
@@ -24,7 +49,7 @@ def cut_and_save_images(image_items, cut_coords, output_dir, img_format="PNG", q
     image_items: list of tuples (path, item, y_offset)
     cut_coords: list of float/int absolute Y coordinates to cut at
     output_dir: directory to save the output images
-    img_format: output format (PNG, JPG, WEBP)
+    img_format: output format (PNG, JPG, WEBP, AVIF)
     quality: output image quality (1-100)
     """
     os.makedirs(output_dir, exist_ok=True)
@@ -42,7 +67,7 @@ def cut_and_save_images(image_items, cut_coords, output_dir, img_format="PNG", q
     
     # Read image sizes
     for path, item, y_offset in image_items:
-        img = QImage(path)
+        img = load_qimage(path)
         if img.isNull():
             continue
             
@@ -98,7 +123,7 @@ def cut_and_save_images(image_items, cut_coords, output_dir, img_format="PNG", q
                 dest_y = overlap_y_start - y_top
                 
                 # Load source image to draw the required part
-                src_img = QImage(info['path'])
+                src_img = load_qimage(info['path'])
                 
                 src_rect = QRect(0, src_y, info['width'], src_height)
                 dest_rect = QRect(0, dest_y, info['width'], src_height)
@@ -112,9 +137,37 @@ def cut_and_save_images(image_items, cut_coords, output_dir, img_format="PNG", q
         if out_ext == "jpeg": out_ext = "jpg"
         out_path = os.path.join(output_dir, f"{segment_index:03d}.{out_ext}")
         
-        if img_format.upper() == "PNG":
-            segment_img.save(out_path, "PNG")
+        saved = False
+        if img_format.upper() == "AVIF":
+            try:
+                from PIL import Image
+                try:
+                    import pillow_avif
+                except ImportError:
+                    pass
+
+                qimg_rgb = segment_img.convertToFormat(QImage.Format.Format_RGB888)
+                ptr = qimg_rgb.bits()
+                ptr.setsize(qimg_rgb.sizeInBytes())
+                pil_img = Image.frombuffer(
+                    'RGB',
+                    (qimg_rgb.width(), qimg_rgb.height()),
+                    bytes(ptr),
+                    'raw',
+                    'RGB',
+                    qimg_rgb.bytesPerLine(),
+                    1
+                )
+                pil_img.save(out_path, "AVIF", quality=quality)
+                saved = os.path.exists(out_path) and os.path.getsize(out_path) > 0
+            except Exception as e:
+                raise RuntimeError(f"AVIF formatında kaydedilirken hata oluştu: {e}")
+        elif img_format.upper() == "PNG":
+            saved = segment_img.save(out_path, "PNG")
         else:
-            segment_img.save(out_path, img_format.upper(), quality)
+            saved = segment_img.save(out_path, img_format.upper(), quality)
+            
+        if not saved:
+            raise RuntimeError(f"Görsel kaydedilemedi: {out_path} (Format: {img_format})")
             
         segment_index += 1

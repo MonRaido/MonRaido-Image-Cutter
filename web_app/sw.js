@@ -1,4 +1,4 @@
-const CACHE_NAME = 'monraido-cutter-v3';
+const CACHE_NAME = 'monraido-cutter-v4';
 const ASSETS = [
     './',
     './index.html',

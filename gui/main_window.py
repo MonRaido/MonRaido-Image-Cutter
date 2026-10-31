@@ -134,7 +134,7 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(right_panel)
 
     def load_image_action(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Resim Seç", self.current_folder, "Images (*.png *.jpg *.jpeg *.webp *.bmp)")
+        path, _ = QFileDialog.getOpenFileName(self, "Resim Seç", self.current_folder, "Images (*.png *.jpg *.jpeg *.webp *.bmp *.avif)")
         if path:
             if not os.path.exists(path):
                 QMessageBox.warning(self, "Hata", "Seçilen resim bulunamadı.")

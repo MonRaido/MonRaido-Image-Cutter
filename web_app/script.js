@@ -257,120 +257,193 @@ qualityInput.addEventListener('input', () => {
     qualityValue.textContent = qualityInput.value;
 });
 
-// 3. Kesme ve ZIP'leme İşlemi (Export)
-document.getElementById('btnExport').addEventListener('click', async () => {
-    if (images.length === 0) return alert("Önce resim yükleyin!");
-    // Çizgi sınırı kaldırıldı, kullanıcı hiç çizgi eklemese bile birleştirme yapabilir.
+// 3. Kesme ve Dışa Aktarma İşlemleri (Export)
+const btnExport = document.getElementById('btnExport');
+const btnExportIndividual = document.getElementById('btnExportIndividual');
+const status = document.getElementById('exportStatus');
 
-    const status = document.getElementById('exportStatus');
-    const btn = document.getElementById('btnExport');
+function setButtonsBusy(isBusy, activeBtn, busyText) {
+    if (btnExport) btnExport.disabled = isBusy;
+    if (btnExportIndividual) btnExportIndividual.disabled = isBusy;
 
-    btn.disabled = true;
-    btn.textContent = "İşleniyor...";
-    status.textContent = "İşlem başladı, lütfen bekleyin...";
+    if (isBusy) {
+        if (activeBtn) activeBtn.textContent = busyText || "İşleniyor...";
+    } else {
+        if (btnExport) btnExport.textContent = "📦 ZIP Olarak İndir";
+        if (btnExportIndividual) btnExportIndividual.textContent = "📥 Tek Tek İndir (Arka Arkaya)";
+    }
+}
 
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 15000);
+}
+
+// Ortak dilimleme motoru
+async function generateSlices() {
+    if (images.length === 0) {
+        alert("Önce resim yükleyin!");
+        return null;
+    }
+
+    status.textContent = "Kesim noktaları hesaplanıyor...";
     await new Promise(resolve => setTimeout(resolve, 50));
 
-    try {
-        const zip = new JSZip();
+    let cuts = [...cutLines];
+    cuts.sort((a, b) => a - b);
+    if (cuts.length === 0 || cuts[0] !== 0) cuts.unshift(0);
+    if (cuts[cuts.length - 1] < totalHeight) cuts.push(totalHeight);
 
-        let cuts = [...cutLines];
-        cuts.sort((a, b) => a - b);
-        if (cuts.length === 0 || cuts[0] !== 0) cuts.unshift(0);
-        if (cuts[cuts.length - 1] < totalHeight) cuts.push(totalHeight);
-
-        // 65500 piksel tarayıcı sınırı kontrolü
-        let maxHeight = 0;
-        for (let i = 0; i < cuts.length - 1; i++) {
-            let h = Math.round(cuts[i + 1] - cuts[i]);
-            if (h > maxHeight) maxHeight = h;
-        }
-
-        if (maxHeight > 65500) {
-            alert(`UYARI: Oluşacak resimlerden biri ${maxHeight} piksel yüksekliğinde!\n\nTarayıcı sınırı (65.500px) aşıldığı için işlem durduruldu. Lütfen araya kesim çizgisi ekleyerek parçaları küçültün.`);
-            btn.disabled = false;
-            btn.textContent = "Böl ve İndir (ZIP)";
-            status.textContent = "İşlem iptal edildi (Boyut sınırı uyarısı).";
-            return;
-        }
-
-        const format = formatSelect.value;
-        const quality = parseInt(qualityInput.value) / 100;
-        let ext = format === 'image/jpeg' ? 'jpg' : (format === 'image/webp' ? 'webp' : 'png');
-
-        const sliceCanvas = document.createElement('canvas');
-        const sliceCtx = sliceCanvas.getContext('2d');
-
-        let segmentIndex = 1;
-        const generatedFiles = [];
-
-        for (let i = 0; i < cuts.length - 1; i++) {
-            const yTop = Math.round(cuts[i]);
-            const yBottom = Math.round(cuts[i + 1]);
-            const segHeight = yBottom - yTop;
-
-            if (segHeight <= 0) continue;
-
-            sliceCanvas.width = maxWidth;
-            sliceCanvas.height = segHeight;
-
-            if (format !== 'image/png') {
-                sliceCtx.fillStyle = '#ffffff';
-                sliceCtx.fillRect(0, 0, maxWidth, segHeight);
-            }
-
-            let currentY = 0;
-            for (let img of images) {
-                const imgYStart = currentY;
-                const imgYEnd = currentY + img.height;
-
-                if (imgYEnd > yTop && imgYStart < yBottom) {
-                    const overlapYStart = Math.max(yTop, imgYStart);
-                    const overlapYEnd = Math.min(yBottom, imgYEnd);
-
-                    const srcY = overlapYStart - imgYStart;
-                    const srcHeight = overlapYEnd - overlapYStart;
-                    const destY = overlapYStart - yTop;
-
-                    sliceCtx.drawImage(img, 0, srcY, img.width, srcHeight, 0, destY, img.width, srcHeight);
-                }
-                currentY += img.height;
-            }
-
-            const blob = await new Promise(resolve => sliceCanvas.toBlob(resolve, format, quality));
-            const fileName = `${String(segmentIndex).padStart(3, '0')}.${ext}`;
-            generatedFiles.push({ name: fileName, blob: blob });
-
-            segmentIndex++;
-            status.textContent = `Dilimleniyor... (${segmentIndex - 1}/${cuts.length - 1})`;
-        }
-
-        if (generatedFiles.length === 1) {
-            status.textContent = "Resim indiriliyor...";
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(generatedFiles[0].blob);
-            link.download = `MonRaido_Image.${ext}`;
-            link.click();
-            status.textContent = "✅ Başarıyla indirildi (Tek Dosya)!";
-        } else {
-            status.textContent = "ZIP dosyası oluşturuluyor...";
-            for (let file of generatedFiles) {
-                zip.file(file.name, file.blob);
-            }
-            const zipBlob = await zip.generateAsync({ type: "blob" });
-
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(zipBlob);
-            link.download = `MonRaido_Image.zip`;
-            link.click();
-            status.textContent = "✅ Başarıyla indirildi (ZIP)!";
-        }
-
-    } catch (e) {
-        console.error(e);
-        status.textContent = "❌ Bir hata oluştu: " + e.message;
-    } finally {
-        btn.disabled = false;
-        btn.textContent = "Böl ve İndir";
+    // 65500 piksel tarayıcı sınırı kontrolü
+    let maxHeight = 0;
+    for (let i = 0; i < cuts.length - 1; i++) {
+        let h = Math.round(cuts[i + 1] - cuts[i]);
+        if (h > maxHeight) maxHeight = h;
     }
-});
+
+    if (maxHeight > 65500) {
+        alert(`UYARI: Oluşacak resimlerden biri ${maxHeight} piksel yüksekliğinde!\n\nTarayıcı sınırı (65.500px) aşıldığı için işlem durduruldu. Lütfen araya kesim çizgisi ekleyerek parçaları küçültün.`);
+        status.textContent = "İşlem iptal edildi (Boyut sınırı uyarısı).";
+        return null;
+    }
+
+    const format = formatSelect.value;
+    const quality = parseInt(qualityInput.value) / 100;
+    let ext = format === 'image/jpeg' ? 'jpg' : (format === 'image/webp' ? 'webp' : 'png');
+
+    const sliceCanvas = document.createElement('canvas');
+    const sliceCtx = sliceCanvas.getContext('2d');
+
+    let segmentIndex = 1;
+    const generatedFiles = [];
+    const totalSegments = cuts.length - 1;
+
+    for (let i = 0; i < totalSegments; i++) {
+        const yTop = Math.round(cuts[i]);
+        const yBottom = Math.round(cuts[i + 1]);
+        const segHeight = yBottom - yTop;
+
+        if (segHeight <= 0) continue;
+
+        sliceCanvas.width = maxWidth;
+        sliceCanvas.height = segHeight;
+
+        if (format !== 'image/png') {
+            sliceCtx.fillStyle = '#ffffff';
+            sliceCtx.fillRect(0, 0, maxWidth, segHeight);
+        }
+
+        let currentY = 0;
+        for (let img of images) {
+            const imgYStart = currentY;
+            const imgYEnd = currentY + img.height;
+
+            if (imgYEnd > yTop && imgYStart < yBottom) {
+                const overlapYStart = Math.max(yTop, imgYStart);
+                const overlapYEnd = Math.min(yBottom, imgYEnd);
+
+                const srcY = overlapYStart - imgYStart;
+                const srcHeight = overlapYEnd - overlapYStart;
+                const destY = overlapYStart - yTop;
+
+                sliceCtx.drawImage(img, 0, srcY, img.width, srcHeight, 0, destY, img.width, srcHeight);
+            }
+            currentY += img.height;
+        }
+
+        const blob = await new Promise(resolve => sliceCanvas.toBlob(resolve, format, quality));
+        const fileName = `${String(segmentIndex).padStart(3, '0')}.${ext}`;
+        generatedFiles.push({ name: fileName, blob: blob });
+
+        status.textContent = `Dilimleniyor... (${segmentIndex}/${totalSegments})`;
+        segmentIndex++;
+    }
+
+    return { generatedFiles, ext };
+}
+
+// 3.1 ZIP Olarak İndirme
+if (btnExport) {
+    btnExport.addEventListener('click', async () => {
+        setButtonsBusy(true, btnExport, "İşleniyor...");
+        status.textContent = "İşlem başladı, lütfen bekleyin...";
+
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        try {
+            const result = await generateSlices();
+            if (!result) return;
+
+            const { generatedFiles, ext } = result;
+            if (generatedFiles.length === 0) return;
+
+            if (generatedFiles.length === 1) {
+                status.textContent = "Resim indiriliyor...";
+                downloadBlob(generatedFiles[0].blob, `MonRaido_001.${ext}`);
+                status.textContent = "✅ Başarıyla indirildi (Tek Dosya)!";
+            } else {
+                status.textContent = "ZIP dosyası oluşturuluyor...";
+                const zip = new JSZip();
+                for (let file of generatedFiles) {
+                    zip.file(file.name, file.blob);
+                }
+                const zipBlob = await zip.generateAsync({ type: "blob" });
+                downloadBlob(zipBlob, `MonRaido_Webtoon.zip`);
+                status.textContent = `✅ Başarıyla indirildi (${generatedFiles.length} parça ZIP)!`;
+            }
+
+        } catch (e) {
+            console.error(e);
+            status.textContent = "❌ Bir hata oluştu: " + e.message;
+        } finally {
+            setButtonsBusy(false);
+        }
+    });
+}
+
+// 3.2 Tek Tek Arka Arkaya İndirme (Seri İndirme)
+if (btnExportIndividual) {
+    btnExportIndividual.addEventListener('click', async () => {
+        setButtonsBusy(true, btnExportIndividual, "Dilimleniyor...");
+        status.textContent = "İşlem başladı, lütfen bekleyin...";
+
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        try {
+            const result = await generateSlices();
+            if (!result) return;
+
+            const { generatedFiles } = result;
+            if (generatedFiles.length === 0) return;
+
+            status.textContent = `Tek tek indirme başlıyor (${generatedFiles.length} dosya)...`;
+            await new Promise(r => setTimeout(r, 200));
+
+            for (let i = 0; i < generatedFiles.length; i++) {
+                const file = generatedFiles[i];
+                status.textContent = `İndiriliyor (${i + 1}/${generatedFiles.length}): ${file.name}...`;
+
+                downloadBlob(file.blob, file.name);
+
+                // Tarayıcı indirme kuyruğunu rahatlatmak için kısa bekleme
+                if (i < generatedFiles.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 400));
+                }
+            }
+
+            status.innerHTML = `✅ ${generatedFiles.length} dosya başarıyla tek tek indirildi!<br><small style="color: #94a3b8;">(Eksik dosya varsa tarayıcının çoklu indirme uyarısına İzin Verin)</small>`;
+
+        } catch (e) {
+            console.error(e);
+            status.textContent = "❌ Bir hata oluştu: " + e.message;
+        } finally {
+            setButtonsBusy(false);
+        }
+    });
+}

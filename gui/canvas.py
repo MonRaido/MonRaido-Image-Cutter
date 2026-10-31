@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
 from PyQt6.QtCore import Qt, QPoint, QRectF, pyqtSignal
 from PyQt6.QtGui import QPainter, QPixmap
+from core.image_cutter import load_qimage
 
 class Canvas(QGraphicsView):
     line_requested = pyqtSignal(float)
@@ -34,10 +35,11 @@ class Canvas(QGraphicsView):
         self.max_width = 0
         
         for path in image_paths:
-            pixmap = QPixmap(path)
-            if pixmap.isNull():
+            img = load_qimage(path)
+            if img.isNull():
                 continue
                 
+            pixmap = QPixmap.fromImage(img)
             item = QGraphicsPixmapItem(pixmap)
             item.setPos(0, self.total_height)
             self.scene.addItem(item)
